@@ -19,6 +19,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 初始化 MSVC 编译环境（不需要完整 Visual Studio IDE）
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      # Ninja 构建工具
+      - name: Install Ninja
+        run: pip install ninja
+
       # Boost 1.87 预编译二进制（msvc-14.3）。镜像下载用非浏览器 UA，
       # 否则 SourceForge 会返回 HTML 下载页而不是文件。
       - name: Install Boost 1.87
@@ -56,7 +63,7 @@ jobs:
           if (Test-Path 'C:\tools\mysql\current') { Remove-Item -Recurse -Force 'C:\tools\mysql\current' }
           Rename-Item 'C:\tools\mysql\mysql-8.4.9-winx64' 'C:\tools\mysql\current'
 
-      # runner 镜像自带 CMake / Visual Studio / OpenSSL，直接探测 OpenSSL 路径
+      # runner 镜像自带 OpenSSL，直接探测路径
       - name: Detect OpenSSL
         shell: pwsh
         run: |
@@ -66,18 +73,21 @@ jobs:
           if (-not $root) { throw 'No OpenSSL found on runner image' }
           "OPENSSL_ROOT_DIR=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
 
+      # Ninja 单配置生成器：用 cl 编译，产物直接输出到 build/ 根目录
       - name: Configure
         shell: pwsh
         run: |
-          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+          cmake -S . -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
-            -DMYSQL_LIBRARIES=C:\tools\mysql\current\lib\mysqlclient.lib `
-            -DMYSQL_INCLUDE_DIR=C:\tools\mysql\current\include `
+            -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl `
+            -DBOOST_ROOT="C:/local/boost_1_87_0" `
+            -DMYSQL_LIBRARIES="C:/tools/mysql/current/lib/mysqlclient.lib" `
+            -DMYSQL_INCLUDE_DIR="C:/tools/mysql/current/include" `
             -DTOOLS_BUILD=all
 
       - name: Build
         shell: pwsh
-        run: cmake --build build --config RelWithDebInfo --parallel $env:NUMBER_OF_PROCESSORS
+        run: cmake --build build --parallel $env:NUMBER_OF_PROCESSORS
 
       - name: Upload artifacts
         if: always()
@@ -85,8 +95,9 @@ jobs:
         with:
           name: windows-build-output
           path: |
-            build/**/worldserver.exe
-            build/**/authserver.exe
-            build/**/*.dll
-            build/**/*.pdb
+            build/worldserver.exe
+            build/authserver.exe
+            build/db-import.exe
+            build/*.dll
+            build/*.pdb
           retention-days: 7
