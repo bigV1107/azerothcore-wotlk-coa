@@ -1,4 +1,4 @@
-name: minimal-build
+name: windows-minimal-build
 
 # 触发方式：推送到 master / 开 PR / 手动运行
 on:
