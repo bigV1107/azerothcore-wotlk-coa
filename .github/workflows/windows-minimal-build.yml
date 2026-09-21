@@ -12,6 +12,9 @@ concurrency:
 
 env:
   BOOST_ROOT: C:\local\boost_1_87_0
+  # 强制 FindMySQL 使用我们下载的 8.4，而不是 runner 预装的 8.0
+  # (预装 8.0 缺少 mysql_stmt_bind_named_param，链接会失败)
+  MYSQL_ROOT: C:\tools\mysql\current
 
 jobs:
   build:
@@ -63,6 +66,15 @@ jobs:
           if (Test-Path 'C:\tools\mysql\current') { Remove-Item -Recurse -Force 'C:\tools\mysql\current' }
           Rename-Item 'C:\tools\mysql\mysql-8.4.9-winx64' 'C:\tools\mysql\current'
 
+      # 移除 runner 镜像预装的 MySQL 8.0，防止 CMake 找到旧版本库
+      - name: Remove preinstalled MySQL 8.0
+        shell: pwsh
+        run: |
+          if (Test-Path 'C:\Program Files\MySQL') {
+            Remove-Item -Recurse -Force 'C:\Program Files\MySQL'
+            Write-Host "Removed preinstalled MySQL"
+          }
+
       # runner 镜像自带 OpenSSL，直接探测路径
       - name: Detect OpenSSL
         shell: pwsh
@@ -95,9 +107,7 @@ jobs:
         with:
           name: windows-build-output
           path: |
-            build/worldserver.exe
-            build/authserver.exe
-            build/db-import.exe
-            build/*.dll
-            build/*.pdb
+            build/bin/*.exe
+            build/bin/*.dll
+            build/bin/*.pdb
           retention-days: 7
